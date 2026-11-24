@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>历史年轮 · 3D 时空树</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Serif+SC:wght@500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap">
+<style>
+  :root{
+    --bg:#04060c;
+    --green:#35f2ab;
+    --gold:#ffcc55;
+    --cyan:#4ec9ff;
+    --ink:#eaf6f2;
+    --muted:#7d948f;
+    --line:rgba(255,255,255,.08);
+    --glass:rgba(9,20,22,.72);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+    font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  #scene{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+  #scene.dragging{cursor:grabbing}
+  #scene.pointing{cursor:pointer}
+
+  /* ---------- 顶栏 ---------- */
+  .top{position:fixed;top:0;left:0;right:0;z-index:6;display:flex;align-items:flex-start;
+    justify-content:space-between;gap:18px;padding:20px 26px;pointer-events:none}
+  .brand{pointer-events:auto;user-select:none}
+  .brand h1{font-family:"Noto Serif SC",serif;font-size:21px;font-weight:600;letter-spacing:.3em;
+    color:#ecfff8;text-shadow:0 0 22px rgba(53,242,171,.32);line-height:1.2}
+  .brand p{margin-top:8px;font-size:10.5px;letter-spacing:.2em;color:#5f7a75;font-weight:400}
+  .tools{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;pointer-events:auto}
+  .btn{border:1px solid rgba(53,242,171,.22);background:rgba(8,20,19,.6);color:#b8f0dd;
+    font-size:11.5px;padding:8px 13px;border-radius:999px;cursor:pointer;letter-spacing:.06em;
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    transition:border-color .2s,background .2s,box-shadow .2s,color .2s;font-family:inherit;white-space:nowrap}
+  .btn:hover{border-color:rgba(53,242,171,.62);background:rgba(18,48,42,.72);color:#a8ffdb;
+    box-shadow:0 0 18px rgba(53,242,171,.2)}
+  .btn.on{background:rgba(53,242,171,.16);border-color:rgba(53,242,171,.65);color:#96ffd2}
+
+  /* ---------- 图例 ---------- */
+  .legend{position:fixed;left:26px;bottom:24px;z-index:5;font-size:11px;color:#89a6a0;
+    line-height:1.9;pointer-events:none;user-select:none}
+  .legend i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:8px;
+    vertical-align:1px;box-shadow:0 0 10px currentColor}
+  .legend .n{color:#6a807c;letter-spacing:.04em;margin-top:6px}
+
+  /* ---------- 底部提示 ---------- */
+  .hintbar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:5;
+    display:flex;gap:18px;font-size:10.5px;letter-spacing:.12em;color:#5c736f;
+    background:rgba(5,12,14,.5);border:1px solid rgba(255,255,255,.05);border-radius:999px;
+    padding:8px 18px;backdrop-filter:blur(8px);pointer-events:none;user-select:none;white-space:nowrap}
+  .hintbar span::before{content:"";display:inline-block;width:4px;height:4px;border-radius:50%;
+    background:#2b6b5c;margin-right:7px;vertical-align:2px}
+
+  /* ---------- 详情面板 ---------- */
+  .panel{position:fixed;top:92px;right:22px;bottom:22px;width:396px;z-index:8;
+    background:linear-gradient(180deg,rgba(10,22,24,.92),rgba(6,14,17,.94));
+    border:1px solid rgba(53,242,171,.18);border-radius:18px;
+    box-shadow:0 24px 80px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.05);
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    display:flex;flex-direction:column;overflow:hidden;
+    transform:translateX(calc(100% + 40px));opacity:0;pointer-events:none;
+    transition:transform .38s cubic-bezier(.2,.8,.25,1),opacity .3s}
+  .panel.show{transform:none;opacity:1;pointer-events:auto}
+  .ph{padding:18px 20px 14px;border-bottom:1px solid var(--line);position:relative;flex:0 0 auto}
+  .ptype{font-size:10px;letter-spacing:.22em;color:#4fbe9c;text-transform:uppercase}
+  .ptitle{font-family:"Noto Serif SC",serif;font-size:20px;font-weight:600;margin-top:8px;
+    color:#f0fff9;line-height:1.35;word-break:break-all}
+  .pdate{margin-top:6px;font-size:12px;color:#7fa79d;letter-spacing:.04em}
+  .xbtn{position:absolute;top:16px;right:16px;width:28px;height:28px;border-radius:50%;
+    border:1px solid rgba(255,255,255,.1);background:transparent;color:#8fa8a3;cursor:pointer;
+    font-size:13px;line-height:1;transition:.2s}
+  .xbtn:hover{border-color:rgba(255,120,120,.5);color:#ff9a9a;background:rgba(255,80,80,.08)}
+  .pbody{padding:16px 20px 24px;overflow-y:auto;flex:1 1 auto;scrollbar-width:thin;
+    scrollbar-color:#1d3a36 transparent}
+  .pbody::-webkit-scrollbar{width:6px}
+  .pbody::-webkit-scrollbar-thumb{background:#1d3a36;border-radius:3px}
+  .field{margin-bottom:16px}
+  .lab{display:flex;align-items:center;justify-content:space-between;font-size:10.5px;
+    letter-spacing:.16em;color:#6f8d87;margin-bottom:8px}
+  .lab b{font-weight:500;color:#8fb3aa;letter-spacing:0}
+  input[type=text],textarea{width:100%;background:rgba(255,255,255,.03);color:#dffff4;
+    border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:10px 12px;font-size:13px;
+    font-family:inherit;outline:none;transition:border-color .2s,background .2s}
+  input[type=text]:focus,textarea:focus{border-color:rgba(53,242,171,.5);background:rgba(53,242,171,.05)}
+  textarea{resize:vertical;min-height:200px;line-height:1.85;font-size:13px;letter-spacing:.02em}
+  .sw{display:flex;gap:7px;flex-wrap:wrap}
+  .sw button{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;
+    padding:0;transition:transform .15s,border-color .15s;box-shadow:0 0 10px rgba(0,0,0,.5)}
+  .sw button:hover{transform:scale(1.14)}
+  .sw button.act{border-color:#fff;transform:scale(1.1)}
+  .thumb{width:100%;height:132px;border-radius:12px;border:1px dashed rgba(255,255,255,.12);
+    display:flex;align-items:center;justify-content:center;overflow:hidden;
+    background:rgba(255,255,255,.02);color:#5a736e;font-size:11.5px;letter-spacing:.08em}
+  .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .imgrow{display:flex;gap:8px;margin-top:8px}
+  .mini{flex:1;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.03);
+    color:#9fbdb6;border-radius:8px;padding:8px;font-size:11px;cursor:pointer;font-family:inherit;
+    transition:.2s;letter-spacing:.06em}
+  .mini:hover{border-color:rgba(53,242,171,.5);color:#9fffd6}
+  .mini.danger:hover{border-color:rgba(255,110,110,.5);color:#ff9c9c}
+  .acts{display:flex;gap:10px;}
+  .acts button{flex:1;border-radius:10px;padding:11px;font-size:12px;cursor:pointer;
+    font-family:inherit;letter-spacing:.08em;transition:.2s}
+  .pfoot{flex:0 0 auto;padding:14px 20px 16px;border-top:1px solid var(--line);
+    background:rgba(5,12,14,.55)}
+  .add{background:rgba(53,242,171,.14);border:1px solid rgba(53,242,171,.42);color:#a5ffd9}
+  .add:hover{background:rgba(53,242,171,.24);box-shadow:0 0 22px rgba(53,242,171,.25)}
+  .del{background:rgba(255,80,80,.07);border:1px solid rgba(255,90,90,.28);color:#ff9d9d}
+  .del:hover{background:rgba(255,80,80,.16);border-color:rgba(255,90,90,.6)}
+  .link{display:block;width:100%;margin-top:10px;padding:9px 10px;border-radius:10px;
+    border:1px dashed rgba(255,255,255,.14);background:transparent;color:#8fb0a9;
+    font-size:11.5px;font-family:inherit;letter-spacing:.04em;cursor:pointer;transition:.2s}
+  .link:hover{border-color:rgba(78,201,255,.5);color:#a9e6ff;background:rgba(78,201,255,.06)}
+  .foot{margin-top:14px;font-size:10.5px;color:#5d7570;letter-spacing:.04em;line-height:1.8}
+
+  /* ---------- 提示 ---------- */
+  .toast{position:fixed;left:50%;bottom:76px;transform:translate(-50%,14px);z-index:20;
+    background:rgba(8,24,22,.94);border:1px solid rgba(53,242,171,.34);color:#a9ffdc;
+    padding:10px 18px;border-radius:999px;font-size:12px;letter-spacing:.06em;
+    opacity:0;pointer-events:none;transition:.3s;box-shadow:0 0 30px rgba(53,242,171,.18)}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  @media (max-width:900px){
+    .top{padding:14px 16px;flex-direction:column;align-items:flex-start}
+    .tools{justify-content:flex-start}
+    .brand h1{font-size:17px}
+    .legend{display:none}
+    .hintbar{bottom:14px;font-size:9.5px;gap:12px;padding:7px 14px}
+    .panel{top:auto;left:10px;right:10px;bottom:10px;width:auto;height:64vh;
+      transform:translateY(calc(100% + 20px));border-radius:18px}
+    .panel.show{transform:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<header class="top">
+  <div class="brand">
+    <h1>历 史 年 轮</h1>
+    <p>HISTORY TREE 3D · 人类起源 → 2026</p>
+  </div>
+  <div class="tools">
+    <button class="btn on" id="btnAuto">星空漫游 · 开</button>
+    <button class="btn" id="btnReset">重置视角</button>
+    <button class="btn" id="btnAdd">＋ 新建分支</button>
+    <button class="btn" id="btnExport">导出数据</button>
+    <button class="btn" id="btnImport">导入数据</button>
+    <button class="btn" id="btnDefault">恢复默认</button>
+  </div>
+</header>
+
+<div class="legend">
+  <div><i style="color:#35f2ab;background:#35f2ab"></i>起点 · 人类起源</div>
+  <div><i style="color:#ffcc55;background:#ffcc55"></i>中国朝代线（部编版）</div>
+  <div><i style="color:#4ec9ff;background:#4ec9ff"></i>世界历史线（人教版）</div>
+  <div class="n" id="stat">—</div>
+</div>
+
+<div class="hintbar">
+  <span>拖动旋转</span><span>滚轮缩放</span><span>点击星点查看历史</span>
+</div>
+
+<aside class="panel" id="panel">
+  <div class="ph">
+    <div class="ptype" id="ptype">中国时间线</div>
+    <div class="ptitle" id="ptitle">—</div>
+    <div class="pdate" id="pdate">—</div>
+    <button class="xbtn" id="pclose" title="关闭">✕</button>
+  </div>
+  <div class="pbody">
+    <div class="field">
+      <div class="lab"><span>节点名称</span></div>
+      <input type="text" id="fTitle" maxlength="24" placeholder="例如：秦朝">
+    </div>
+    <div class="field">
+      <div class="lab"><span>时间节点</span></div>
+      <input type="text" id="fDate" maxlength="32" placeholder="例如：公元前221年">
+    </div>
+    <div class="field">
+      <div class="lab"><span>节点颜色</span><b id="fColorName">金色</b></div>
+      <div class="sw" id="fColor"></div>
+    </div>
+    <div class="field">
+      <div class="lab"><span>历史笔记</span><b id="fCount">0 字</b></div>
+      <textarea id="fText" maxlength="3000" placeholder="在这里写这个节点的历史内容，建议 500 字左右：背景、经过、影响、常考知识点都可以写进来。"></textarea>
+    </div>
+    <div class="field">
+      <div class="lab"><span>节点配图</span><b>可选</b></div>
+      <div class="thumb" id="fThumb">未添加图片</div>
+      <div class="imgrow">
+        <button class="mini" id="fUpload">上传图片</button>
+        <button class="mini danger" id="fRemoveImg">移除图片</button>
+      </div>
+      <input type="text" id="fUrl" placeholder="或粘贴图片网址后回车" style="margin-top:8px">
+    </div>
+  </div>
+  <div class="pfoot">
+    <div class="acts">
+      <button class="add" id="btnChild">＋ 添加子分支</button>
+      <button class="del" id="btnDel">删除节点</button>
+    </div>
+    <button class="link" id="btnInsert">↳ 在主线上插入节点（接在此节点之后）</button>
+    <div class="foot" id="footInfo">子分支：0</div>
+  </div>
+</aside>
+
+<div class="toast" id="toast"></div>
+<input type="file" id="fileImg" accept="image/*" hidden>
+<input type="file" id="fileJson" accept=".json,application/json" hidden>
+
+<script>
+/* =========================================================
+   历史年轮 3D · 单文件 3D 时空树
+   - 纯 Canvas 2D 手写 3D 投影，无外部依赖
+   - 两条主线 + 可无限增减的分支，内容存 localStorage
+   ========================================================= */
+
+const TAU = Math.PI * 2;
+const cv  = document.getElementById('scene');
+const ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1, FOV = 1000;
+
+/* ---------------- 调色板 ---------------- */
+const PALETTE = ['#35f2ab','#ffcc55','#ff8a3d','#ff5a6e','#ff6bd6','#a97bff','#6f8cff','#4ec9ff','#2ee6d6','#b6ff4d','#dfe9ff'];
+const COLOR_NAMES = {'#35f2ab':'荧光绿','#ffcc55':'金','#ff8a3d':'橙','#ff5a6e':'朱红','#ff6bd6':'粉','#a97bff':'紫','#6f8cff':'靛蓝','#4ec9ff':'天青','#2ee6d6':'青碧','#b6ff4d':'嫩绿','#dfe9ff':'银白'};
+
+/* 中国时间线：按时代配色 */
+const C_MINT = '#7dffd0', C_AMBER = '#ffcc55', C_ORANGE = '#ff9f43', C_VIOLET = '#a97bff',
+      C_ROSE  = '#ff6b9d', C_SKY = '#4ec9ff', C_INDIGO = '#6f8cff', C_RED = '#ff5a6e',
+      C_GREEN2 = '#43e97b';
+/* 世界时间线：按时代配色 */
+const W_TEAL = '#4ec9ff', W_MINT = '#57e0d0', W_VIOLET = '#8f7bff', W_PURPLE = '#c07bff',
+      W_AMBER = '#ffa94d', W_CYAN = '#5ce1e6', W_ICE = '#a6f7ff';
+
+/* ---------------- 默认数据 ---------------- */
+const DEF = [
+  {id:'root', p:null, k:'root', t:'人类起源', d:'约300万年前', c:'#35f2ab',
+   x:'大约300万年前，非洲的南方古猿中的一支开始直立行走、打制石器，人类的漫长旅程由此开始。距今约1万年前，农业革命使人类定居成村、驯化动植物；距今约5000年前，文字、城市与国家相继出现，人类进入有记载的文明时代。这棵树从这一点向外生长：金色枝干是中国朝代线，青色枝干是中国人教版世界史线，每一条延伸出去的分支，都是一个时间节点。'},
+
+  /* ============ 中国时间线（部编版 2026） ============ */
+  {id:'c1', p:'root', k:'trunk', t:'元谋人', d:'约170万年前', c:C_MINT,
+   x:'云南元谋县发现的两枚门齿化石，是我国境内目前已确认的最早古人类。他们能制造粗糙的打制石器，已经知道使用火。元谋人的发现把中国境内人类活动的历史推到了百万年前，是中华大地上最早的生命注脚。'},
+  {id:'c2', p:'c1', k:'trunk', t:'北京人', d:'约70万—20万年前', c:C_MINT,
+   x:'发现于北京周口店龙骨山的洞穴中，保留着猿的某些体质特征，但已能直立行走。他们使用打制石器，会使用天然火并能长时间保存火种，以采集和狩猎为生，过着群居生活。火的使用大大增强了人类征服自然的能力。'},
+  {id:'c3', p:'c2', k:'trunk', t:'山顶洞人', d:'约3万年前', c:C_MINT,
+   x:'同样发现于周口店，模样已与现代人基本相同。他们掌握磨光和钻孔技术，会用骨针缝制衣服，懂得人工取火，以氏族为基本单位生活，已有爱美意识和埋葬死者的习俗，原始宗教观念开始萌芽。'},
+  {id:'c4', p:'c3', k:'trunk', t:'河姆渡与半坡', d:'约7000年前', c:C_MINT,
+   x:'南方河姆渡人种植水稻、住干栏式房屋，北方半坡人种植粟、住半地穴式圆形房屋。都使用磨制石器，制作彩陶，饲养猪狗，纺织麻布。南稻北粟的农业格局，奠定了中华文明赖以生长的经济基础。'},
+  {id:'c5', p:'c4', k:'trunk', t:'良渚与陶寺', d:'约5300—4000年前', c:C_MINT,
+   x:'良渚古城拥有大规模城墙、水利系统与高等级玉器（玉琮、玉璧），陶寺遗址发现观象台与大型墓葬。这些考古成果表明，长江下游与黄河中游已出现明显的阶级分化和早期国家形态，为“中华文明五千多年”提供了实证。'},
+  {id:'c6', p:'c5', k:'trunk', t:'炎黄尧舜禹', d:'约4000多年前', c:C_AMBER,
+   x:'传说黄帝与炎帝在涿鹿之战后结成联盟，逐渐形成华夏族的主体。尧、舜、禹时期实行禅让制，推举贤能者为首领。大禹用疏导的办法治理洪水，“三过家门而不入”，成为中华文明早期公而忘私的精神象征。'},
+  {id:'c7', p:'c6', k:'trunk', t:'夏朝', d:'约公元前2070年', c:C_AMBER,
+   x:'禹建立夏朝，这是我国历史上第一个王朝。禹死后其子启继位，世袭制取代禅让制，“公天下”变为“家天下”。二里头遗址出土宫殿基址、青铜器与绿松石龙形器，被认为与夏文化关系密切。'},
+  {id:'c8', p:'c7', k:'trunk', t:'商朝', d:'约公元前1600年', c:C_AMBER,
+   x:'汤灭夏建立商朝，盘庚迁都于殷（今河南安阳），故又称殷商。甲骨文是我国已发现的年代最早、体系较为完整的成熟文字；青铜铸造达到高峰，司母戊鼎、四羊方尊为代表作。商朝实行内外服制，控制范围不断扩大。'},
+  {id:'c9', p:'c8', k:'trunk', t:'西周', d:'公元前1046年', c:C_AMBER,
+   x:'周武王在牧野之战中击败商纣王，建立西周，定都镐京。实行分封制与宗法制，以血缘为纽带“授民授疆土”，并配合礼乐制度维系统治秩序。公元前771年犬戎攻破镐京，西周灭亡，次年周平王东迁洛邑。'},
+  {id:'c10', p:'c9', k:'trunk', t:'春秋战国', d:'公元前770—前221年', c:C_AMBER,
+   x:'周平王东迁后王室衰微，诸侯争霸兼并。铁犁牛耕推动生产力飞跃，井田制逐步瓦解；商鞅变法使秦国后来居上。思想领域出现“百家争鸣”，孔子、孟子、老子、庄子、墨子、韩非各抒己见，奠定了中国传统思想的根基。'},
+  {id:'c11', p:'c10', k:'trunk', t:'秦朝', d:'公元前221年', c:C_ORANGE,
+   x:'秦王嬴政灭六国，建立我国历史上第一个统一的多民族封建国家。确立皇帝制度、三公九卿与郡县制，统一文字、货币、度量衡，北修长城、南筑灵渠。严刑峻法与沉重赋役激起陈胜吴广起义，公元前207年秦朝灭亡。'},
+  {id:'c12', p:'c11', k:'trunk', t:'西汉', d:'公元前202年', c:C_ORANGE,
+   x:'刘邦建立汉朝，定都长安。初期实行休养生息政策，出现“文景之治”。汉武帝颁布“推恩令”削弱诸侯王，盐铁官营、统一铸币，罢黜百家、尊崇儒术，派张骞出使西域，开辟丝绸之路，西汉进入鼎盛时期。'},
+  {id:'c13', p:'c12', k:'trunk', t:'东汉', d:'公元25年', c:C_ORANGE,
+   x:'刘秀重建汉朝，定都洛阳，史称东汉，出现“光武中兴”。蔡伦改进造纸术，张仲景著《伤寒杂病论》，华佗创制“麻沸散”。班超经营西域，佛教传入中原。后期外戚宦官交替专权，184年爆发黄巾起义。'},
+  {id:'c14', p:'c13', k:'trunk', t:'三国两晋南北朝', d:'220—589年', c:C_VIOLET,
+   x:'220年曹丕称帝，三国鼎立；280年西晋短暂统一，此后北方各族内迁、政权更迭。317年东晋建立，南方相对安定，江南得到大规模开发。北魏孝文帝改革推行汉化，促进民族交融。这一时期政权分立，却孕育着走向统一的因素。'},
+  {id:'c15', p:'c14', k:'trunk', t:'隋朝', d:'581—618年', c:C_ROSE,
+   x:'581年杨坚建立隋朝，589年灭陈统一全国。创立科举制，以考试选拔人才；开通贯通南北的大运河，加强南北经济文化交流。隋炀帝滥用民力、三征辽东，农民起义蜂起，618年隋朝灭亡。'},
+  {id:'c16', p:'c15', k:'trunk', t:'唐朝', d:'618—907年', c:C_ROSE,
+   x:'唐太宗开创“贞观之治”，武则天承前启后，唐玄宗前期出现“开元盛世”，国力达到鼎盛。完善三省六部制与科举制，实行开明的民族政策，玄奘西行、鉴真东渡。755年安史之乱后由盛转衰，藩镇割据、宦官专权，907年朱温灭唐。'},
+  {id:'c17', p:'c16', k:'trunk', t:'五代十国', d:'907—979年', c:C_ROSE,
+   x:'唐朝灭亡后，北方相继出现五个短命王朝，南方与山西存在十个割据政权。战乱频繁，但南方相对安定，经济重心继续南移，为北宋的统一奠定了基础。979年北宋灭北汉，分裂局面基本结束。'},
+  {id:'c18', p:'c17', k:'trunk', t:'北宋', d:'960—1127年', c:C_SKY,
+   x:'赵匡胤“陈桥兵变”建立宋朝，定都开封，实行重文轻武、分割相权、设置转运使。与辽订立“澶渊之盟”换取长期和平。毕昇发明活字印刷，指南针用于航海，纸币“交子”出现，宋词与市民文化繁荣。1069年王安石主持变法。'},
+  {id:'c19', p:'c18', k:'trunk', t:'辽宋夏金', d:'1115—1279年', c:C_SKY,
+   x:'北宋与辽、西夏并立，1127年“靖康之变”北宋灭亡，赵构建立南宋。金与南宋长期对峙，岳飞抗金；经济重心南移完成，“苏湖熟，天下足”。蒙古崛起后先后灭西夏、灭金，1271年忽必烈建立元朝。'},
+  {id:'c20', p:'c19', k:'trunk', t:'元朝', d:'1271—1368年', c:C_INDIGO,
+   x:'1271年忽必烈定国号为元，1279年灭南宋统一全国。开创行省制度，设宣政院管辖西藏，设澎湖巡检司管辖台湾，回族在这一时期形成。开通海运、疏浚大运河，《马可·波罗行纪》激起欧洲对东方的想象。1368年明军攻入大都。'},
+  {id:'c21', p:'c20', k:'trunk', t:'明朝', d:'1368—1644年', c:C_INDIGO,
+   x:'朱元璋建立明朝，废丞相、权分六部，设锦衣卫，八股取士强化思想控制。1405年起郑和七下西洋；戚继光、俞大猷抗击倭寇。李时珍《本草纲目》、宋应星《天工开物》、徐光启《农政全书》相继问世。1644年李自成攻入北京，明朝灭亡。'},
+  {id:'c22', p:'c21', k:'trunk', t:'清朝前期', d:'1644—1840年', c:C_INDIGO,
+   x:'满洲入关定都北京。康雍乾时期平定三藩、统一台湾、击败准噶尔，设置驻藏大臣、伊犁将军，奠定现代中国疆域的基础。军机处强化皇权，文字狱钳制思想；“闭关锁国”仅留广州一口通商，为近代落后埋下隐患。'},
+  {id:'c23', p:'c22', k:'trunk', t:'鸦片战争', d:'1840年', c:C_RED,
+   x:'1839年林则徐虎门销烟，1840年英国发动侵略战争，1842年被迫签订《南京条约》，割香港岛、赔款、开放五口通商。中国开始沦为半殖民地半封建社会，中国近代史由此开端，也促使国人“开眼看世界”。'},
+  {id:'c24', p:'c23', k:'trunk', t:'辛亥革命', d:'1911年', c:C_RED,
+   x:'孙中山创立兴中会、同盟会，提出“三民主义”。1911年10月10日武昌起义，各省纷纷响应；1912年1月1日中华民国临时政府在南京成立，清帝退位。《中华民国临时约法》是中国第一部资产阶级共和国宪法性质的文件。'},
+  {id:'c25', p:'c24', k:'trunk', t:'五四与建党', d:'1919—1921年', c:C_RED,
+   x:'新文化运动高举“民主”与“科学”两面旗帜。1919年五四运动因巴黎和会外交失败而爆发，工人阶级登上政治舞台。1921年中共一大在上海召开，中国革命面貌焕然一新。此后国民革命、井冈山斗争、万里长征相继展开。'},
+  {id:'c26', p:'c25', k:'trunk', t:'抗日战争', d:'1931—1945年', c:C_RED,
+   x:'1931年九一八事变，1937年七七事变，全面抗战爆发。南京大屠杀中30万以上同胞遇难；平型关大捷、台儿庄战役、百团大战振奋人心。1945年8月15日日本宣布无条件投降，这是近代以来中国抗击外敌入侵的第一次完全胜利。'},
+  {id:'c27', p:'c26', k:'trunk', t:'新中国成立', d:'1949年', c:C_GREEN2,
+   x:'1949年10月1日开国大典，中华人民共和国成立，中国人民从此站起来了。1950—1952年完成土地改革，抗美援朝保家卫国；1953年起实施“一五计划”，1956年三大改造完成，社会主义制度基本建立，1954年颁布第一部宪法。'},
+  {id:'c28', p:'c27', k:'trunk', t:'改革开放', d:'1978年', c:C_GREEN2,
+   x:'1978年十一届三中全会作出把工作重心转移到经济建设上来、实行改革开放的伟大决策。农村推行家庭联产承包责任制，1980年设立深圳等经济特区，1992年确立社会主义市场经济体制目标，2001年加入世界贸易组织，中国经济实现跨越式发展。'},
+  {id:'c29', p:'c28', k:'trunk', t:'新时代', d:'2012年至今', c:C_GREEN2,
+   x:'党的十八大以来，中国特色社会主义进入新时代。2021年全面建成小康社会，历史性地解决了绝对贫困问题；科技自立自强加快推进，高铁、5G、航天、人工智能蓬勃发展。中国倡导构建人类命运共同体，日益走近世界舞台中央。'},
+
+  /* ============ 世界时间线（人教版） ============ */
+  {id:'w1', p:'root', k:'trunk', t:'两河与埃及', d:'约公元前3500年', c:W_TEAL,
+   x:'苏美尔人在两河流域建立城市国家，发明楔形文字，制定《汉谟拉比法典》；尼罗河的定期泛滥孕育了古埃及，法老、金字塔、象形文字与太阳历相继出现。它们与古印度、古中国并称四大文明古国，都诞生在大河流域，属于典型的农耕文明。'},
+  {id:'w2', p:'w1', k:'trunk', t:'古印度与佛教', d:'约公元前23—前3世纪', c:W_TEAL,
+   x:'印度河流域出现哈拉帕文明；雅利安人进入后形成种姓制度，婆罗门、刹帝利、吠舍、首陀罗等级森严。公元前6世纪，乔达摩·悉达多创立佛教，主张“众生平等”，后经阿育王推广，传播到东亚与东南亚。'},
+  {id:'w3', p:'w2', k:'trunk', t:'希腊城邦', d:'约公元前8—前4世纪', c:W_MINT,
+   x:'希腊城邦小国寡民，雅典在伯里克利时期民主政治达到顶峰，公民大会是最高权力机构。苏格拉底、柏拉图、亚里士多德奠定西方哲学基础；公元前4世纪亚历山大东征，希腊文化随帝国扩张传向东方，史称“希腊化时代”。'},
+  {id:'w4', p:'w3', k:'trunk', t:'罗马帝国', d:'公元前509—公元476年', c:W_MINT,
+   x:'公元前509年罗马废除王政建立共和国，元老院与执政官分权，《十二铜表法》是罗马第一部成文法。公元前27年屋大维建立元首制，帝国地跨欧亚非三洲。基督教在1世纪产生。395年帝国分裂，476年西罗马灭亡，西欧进入中世纪。'},
+  {id:'w5', p:'w4', k:'trunk', t:'西欧封建', d:'476—1453年', c:W_VIOLET,
+   x:'法兰克王国在查理曼时期达到鼎盛，843年《凡尔登条约》三分其国，奠定法、德、意三国的雏形。封君封臣制与庄园经济构成社会基础，基督教会影响深远；11世纪起大学兴起。1453年奥斯曼帝国攻占君士坦丁堡，拜占庭帝国灭亡。'},
+  {id:'w6', p:'w5', k:'trunk', t:'阿拉伯帝国', d:'622—13世纪', c:W_VIOLET,
+   x:'622年穆罕默德在麦地那建立政教合一的政权，伊斯兰教随之传播。8世纪阿拉伯帝国横跨亚欧非，巴格达成为学术中心，“智慧宫”翻译保存古希腊典籍，并把中国的造纸术、印度的数字传入欧洲，充当了东西方文化交流的桥梁。'},
+  {id:'w7', p:'w6', k:'trunk', t:'文艺复兴', d:'14—16世纪', c:W_PURPLE,
+   x:'意大利首先兴起文艺复兴，人文主义取代以神为中心的观念，但丁《神曲》、达·芬奇、莎士比亚为代表人物。1492年哥伦布到达美洲，达·伽马、麦哲伦完成远洋航行，新航路开辟使世界开始连为一体，同时也开启了殖民掠夺。'},
+  {id:'w8', p:'w7', k:'trunk', t:'英国革命', d:'1640—1688年', c:W_AMBER,
+   x:'1640年议会重新召开，与王权的冲突激化；1649年查理一世被处死，英国宣布建立共和国。1660年斯图亚特王朝复辟，1688年“光荣革命”后，1689年《权利法案》限制王权、保障议会权力，君主立宪制在英国确立。'},
+  {id:'w9', p:'w8', k:'trunk', t:'美国独立', d:'1775—1787年', c:W_AMBER,
+   x:'来克星顿枪声打响独立战争，1776年7月4日《独立宣言》宣告人人生而平等，华盛顿领导大陆军赢得胜利，1783年英国承认美国独立。1787年宪法确立联邦制与三权分立，是世界上第一部资产阶级成文宪法。'},
+  {id:'w10', p:'w9', k:'trunk', t:'法国大革命', d:'1789—1815年', c:W_AMBER,
+   x:'1789年7月14日巴黎民众攻占巴士底狱，《人权宣言》宣告自由平等、私有财产神圣不可侵犯。雅各宾派专政之后，拿破仑于1804年称帝，颁布《拿破仑法典》，其对外战争动摇了欧洲的封建秩序，1815年滑铁卢战败。'},
+  {id:'w11', p:'w10', k:'trunk', t:'工业革命', d:'18世纪60年代起', c:W_AMBER,
+   x:'从英国棉纺织业开始，哈格里夫斯发明珍妮机，瓦特改良蒸汽机使人类进入“蒸汽时代”；史蒂芬孙的火车、富尔顿的汽船改变了交通运输。工厂制度确立，城市化加速，工业资产阶级与无产阶级形成，世界市场初步形成。'},
+  {id:'w12', p:'w11', k:'trunk', t:'马克思主义', d:'1848年', c:W_AMBER,
+   x:'马克思、恩格斯为共产主义者同盟起草《共产党宣言》，标志着马克思主义的诞生，科学社会主义成为国际工人运动的旗帜。1871年巴黎公社是无产阶级建立政权的第一次伟大尝试，《国际歌》由此传唱。'},
+  {id:'w13', p:'w12', k:'trunk', t:'制度扩展', d:'1861—1868年', c:W_AMBER,
+   x:'美国南北战争爆发，林肯颁布《解放黑人奴隶宣言》，维护了国家统一、废除了奴隶制。俄国1861年改革废除农奴制，日本1868年明治维新推行“殖产兴业、文明开化”，资本主义制度在世界范围内扩展。'},
+  {id:'w14', p:'w13', k:'trunk', t:'第二次工业革命', d:'19世纪70年代起', c:W_PURPLE,
+   x:'电力广泛应用，爱迪生发明耐用白炽灯，内燃机、汽车、飞机相继问世，化学工业兴起，人类进入“电气时代”。生产与资本集中产生垄断组织，主要资本主义国家进入帝国主义阶段，世界市场最终形成。'},
+  {id:'w15', p:'w14', k:'trunk', t:'第一次世界大战', d:'1914—1918年', c:W_AMBER,
+   x:'萨拉热窝事件成为导火索，同盟国与协约国展开总体战，凡尔登战役被称为“绞肉机”，1918年11月德国投降。1919年巴黎和会签订《凡尔赛条约》，1921年华盛顿会议召开，凡尔赛—华盛顿体系由此确立。'},
+  {id:'w16', p:'w15', k:'trunk', t:'十月革命', d:'1917年', c:C_RED,
+   x:'1917年11月列宁领导彼得格勒武装起义，建立了世界上第一个社会主义国家。1921年实行新经济政策，1928年起通过五年计划实现工业化，1936年新宪法颁布，标志苏联模式形成。'},
+  {id:'w17', p:'w16', k:'trunk', t:'大危机与新政', d:'1929—1933年', c:W_CYAN,
+   x:'1929年纽约股市崩盘引发全球经济大萧条，失业激增、贸易萎缩。1933年罗斯福就任美国总统，推行新政，以国家干预经济、兴办公共工程、整顿金融体系，开创了国家垄断资本主义的先例。'},
+  {id:'w18', p:'w17', k:'trunk', t:'第二次世界大战', d:'1939—1945年', c:W_CYAN,
+   x:'1939年德国突袭波兰，1941年苏德战争与珍珠港事件使战争达到全球规模。1942年《联合国家宣言》签署，1944年诺曼底登陆，1945年雅尔塔会议召开、德国投降、日本无条件投降。同年10月联合国成立。'},
+  {id:'w19', p:'w18', k:'trunk', t:'亚非拉独立', d:'1947—1990年', c:W_CYAN,
+   x:'1947年印巴分治、印度独立；1959年古巴革命胜利；1960年“非洲年”17国独立，1990年纳米比亚独立标志着殖民体系最终崩溃。1955年万隆会议与不结盟运动，推动发展中国家登上国际舞台。'},
+  {id:'w20', p:'w19', k:'trunk', t:'冷战格局', d:'1947—1991年', c:W_ICE,
+   x:'1947年杜鲁门主义出台，马歇尔计划、北约与华约相继形成对峙，德国分裂、古巴导弹危机使世界多次走到核战争边缘。1991年苏联解体，两极格局结束，世界朝多极化方向发展。'},
+  {id:'w21', p:'w20', k:'trunk', t:'全球化时代', d:'20世纪90年代至今', c:W_ICE,
+   x:'1995年世界贸易组织成立，欧盟与各类区域合作不断深化；互联网普及催生信息时代，人工智能、航天、生物技术迅猛发展。和平与发展仍是时代主题，构建人类命运共同体逐渐成为全球共识。'},
+
+  /* ============ 分支节点 · 典型事件 ============ */
+  {id:'k1', p:'c11', k:'branch', t:'统一文字度量衡', d:'公元前221年', c:'#ffcc55',
+   x:'秦统一后以小篆作为标准文字，统一货币为圆形方孔半两钱，统一度量衡与车轨，修筑驰道。这些措施巩固了国家统一，促进了各地经济文化交流，影响后世两千余年。'},
+  {id:'k2', p:'c11', k:'branch', t:'长城与灵渠', d:'约公元前214年', c:'#ff8a3d',
+   x:'北方连接秦、赵、燕旧长城抵御匈奴，西起临洮、东到辽东；南方开凿灵渠沟通湘江与漓江，成为中原与岭南之间的水运通道，至今仍在发挥作用。'},
+  {id:'k3', p:'c11', k:'branch', t:'陈胜吴广起义', d:'公元前209年', c:'#ff5a6e',
+   x:'大泽乡起义喊出“王侯将相宁有种乎”，是我国历史上第一次大规模农民起义。虽然最终失败，却沉重打击了秦朝的统治，揭开反秦的序幕。'},
+  {id:'k4', p:'c16', k:'branch', t:'贞观之治', d:'627—649年', c:'#ff6b9d',
+   x:'唐太宗虚心纳谏、任用贤能，轻徭薄赋、完善科举与法律，社会安定、经济迅速恢复，被后世誉为“贞观之治”，成为中国古代治世的典范。'},
+  {id:'k5', p:'c16', k:'branch', t:'开元盛世', d:'713—741年', c:'#ff6b9d',
+   x:'唐玄宗前期励精图治，任用姚崇、宋璟为相，整顿吏治、发展生产，国库充盈、人口增长，长安成为国际性大都市，唐朝进入全盛时期。'},
+  {id:'k6', p:'c16', k:'branch', t:'安史之乱', d:'755—763年', c:'#ff8a3d',
+   x:'节度使安禄山、史思明发动叛乱，唐朝由盛转衰。此后藩镇割据、赋税加重，经济重心开始南移，中央集权遭到严重削弱。'},
+  {id:'k7', p:'c16', k:'branch', t:'玄奘西行', d:'627—645年', c:'#4ec9ff',
+   x:'玄奘西行天竺求取佛法，游历百余国，回国后口述《大唐西域记》。该书成为研究中亚、南亚历史地理的重要文献，也是中外文化交流的见证。'},
+  {id:'k8', p:'c18', k:'branch', t:'活字印刷与指南针', d:'11世纪', c:'#4ec9ff',
+   x:'北宋毕昇发明泥活字印刷，大大提高了印刷效率；指南针开始用于航海。四大发明的应用与外传，推动了世界文明的发展进程。'},
+  {id:'k9', p:'c18', k:'branch', t:'王安石变法', d:'1069年', c:'#ffa94d',
+   x:'宋神宗支持王安石推行青苗法、募役法、方田均税法等，意在富国强兵、缓解财政危机。因触犯大地主大官僚利益、执行中出现偏差，最终失败。'},
+  {id:'k10', p:'c21', k:'branch', t:'郑和下西洋', d:'1405—1433年', c:'#6f8cff',
+   x:'郑和七次远航，最远到达非洲东海岸与红海沿岸，船队规模空前，传播友谊、互通有无，是世界航海史上的壮举，比欧洲航海家的远航早半个多世纪。'},
+  {id:'k11', p:'c21', k:'branch', t:'戚继光抗倭', d:'16世纪', c:'#ff5a6e',
+   x:'戚继光组建“戚家军”，在台州九战九捷，与俞大猷配合作战，基本平定东南沿海倭患，保卫了海疆安宁，是明代著名的民族英雄。'},
+  {id:'k12', p:'c22', k:'branch', t:'康乾盛世', d:'1681—1796年', c:'#ffcc55',
+   x:'康熙、雍正、乾隆时期国力强盛，人口大幅增长，疆域进一步巩固，农业与商业繁荣。但闭关自守、思想禁锢、吏治腐败也在盛世之下潜伏着危机。'},
+  {id:'k13', p:'c22', k:'branch', t:'闭关锁国', d:'1757年', c:'#6f8cff',
+   x:'清政府下令只留广州一处对外通商，由十三行垄断对外贸易。这一政策虽在一定时期内抵御了殖民侵略，却使中国逐渐脱离世界潮流，落后于西方。'},
+  {id:'k14', p:'c23', k:'branch', t:'洋务运动', d:'1861—1895年', c:'#ff9f43',
+   x:'洋务派以“自强”“求富”为口号，创办军事与民用工业、新式学堂，派遣留学生，建立北洋海军。甲午战败标志其破产，但客观上开启了中国近代化的进程。'},
+  {id:'k15', p:'c23', k:'branch', t:'戊戌变法', d:'1898年', c:'#ff6bd6',
+   x:'康有为、梁启超推动维新变法，光绪帝颁布“明定国是”诏书，改革仅持续103天即被慈禧太后镇压，谭嗣同等“戊戌六君子”遇害，史称“百日维新”。'},
+  {id:'k16', p:'c23', k:'branch', t:'义和团与辛丑条约', d:'1900—1901年', c:'#ff5a6e',
+   x:'义和团提出“扶清灭洋”，八国联军借机侵华。1901年清政府被迫签订《辛丑条约》，赔款4.5亿两白银，中国完全陷入半殖民地半封建社会的深渊。'},
+  {id:'k17', p:'c26', k:'branch', t:'南京大屠杀', d:'1937年', c:'#ff5a6e',
+   x:'日军攻陷南京后展开长达六周的大屠杀，30万以上同胞遇难，无数妇女遭受暴行。这是第二次世界大战中震惊世界的暴行，是中华民族永远不能忘却的伤痛。'},
+  {id:'k18', p:'c26', k:'branch', t:'百团大战', d:'1940年', c:'#ff9f43',
+   x:'彭德怀指挥八路军在华北发动大规模破袭战，破坏日军交通线、拔除据点，沉重打击了侵略者，振奋了全国军民的抗战信心。'},
+  {id:'k19', p:'w11', k:'branch', t:'瓦特改良蒸汽机', d:'1785年', c:'#ffa94d',
+   x:'瓦特改良的蒸汽机投入使用，为工厂提供了稳定而强大的动力，人类由此进入“蒸汽时代”，工业生产摆脱了对水力和人力的依赖。'},
+  {id:'k20', p:'w11', k:'branch', t:'史蒂芬孙的火车', d:'1825年', c:'#ffa94d',
+   x:'“旅行者号”机车试车成功，铁路运输时代正式开启。交通运输效率的飞跃，把原料、市场与工厂更紧密地连在一起，推动世界市场形成。'},
+  {id:'k21', p:'w18', k:'branch', t:'联合国成立', d:'1945年', c:'#5ce1e6',
+   x:'1945年10月24日《联合国宪章》生效，联合国正式成立。它以维护国际和平与安全为宗旨，成为战后最重要的国际组织。'}
+];
+
+/* ---------------- 状态 ---------------- */
+const KEY = 'historyTree3d.v1';
+let nodes = {};
+const state = { sel:null, hover:null, yaw:-0.85, pitch:0.62, zoom:0.85, auto:true, fit:0.85, ox:0, oy:0 };
+let userZoomed = false;
+
+/* ---------------- 构建 / 存储 ---------------- */
+function build(list){
+  nodes = {};
+  list.forEach(o=>{
+    if(!o || !o.id) return;
+    nodes[o.id] = {
+      id:o.id, p:o.p||null, t:o.t||'未命名节点', d:o.d||'', c:o.c||'#4ec9ff',
+      x:o.x||'', img:o.img||null, k:o.k||'branch', children:[], pos:null, depth:0, tl:'china'
+    };
+  });
+  if(!nodes.root){
+    nodes.root = {id:'root',p:null,t:'人类起源',d:'约300万年前',c:'#35f2ab',x:'',img:null,k:'root',children:[],pos:null,depth:0,tl:'origin'};
+  }
+  Object.values(nodes).forEach(n=>{
+    if(n.id === 'root') return;
+    if(n.p && nodes[n.p]) nodes[n.p].children.push(n.id);
+    else { n.p = 'root'; nodes.root.children.push(n.id); }
+  });
+  relayout();
+}
+
+function serialize(){
+  return Object.values(nodes).map(n=>({id:n.id,p:n.p,t:n.t,d:n.d,c:n.c,x:n.x,k:n.k,img:n.img||null}));
+}
+
+let saveTimer = null;
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>{
+    try{ localStorage.setItem(KEY, JSON.stringify(serialize())); }
+    catch(e){ toast('本地空间不足，图片过大可能无法自动保存'); }
+  }, 260);
+}
+
+function loadSaved(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr) && arr.length){ build(arr); return true; }
+    }
+  }catch(e){}
+  return false;
+}
+
+/* ---------------- 空间布局 ---------------- */
+function relayout(){
+  Object.values(nodes).forEach(n=>{ n.depth = 0; });
+  const root = nodes.root;
+  root.pos = {x:0,y:0,z:0}; root.depth = 0; root.tl = 'origin';
+
+  const trunks = root.children.filter(id=>nodes[id]);
+  trunks.forEach((id,i)=>{
+    const az = i===0 ? 0.62 : (i===1 ? Math.PI + 0.34 : 0.62 + i*2.15);
+    const tl = i===0 ? 'china' : (i===1 ? 'world' : 'other');
+    walk(id, 1, az, 0.35 + i*0.45, tl, 0);
+  });
+  updateStat();
+}
+
+/* 自动适配视野：按任意旋转角度下的投影包围盒装进画面 */
+function fitView(){
+  const oy0 = state.oy, z0 = state.zoom, yaw0 = state.yaw, pitch0 = state.pitch, ox0 = state.ox;
+  state.oy = 0; state.ox = 0; state.zoom = 1;
+  let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+  const pitches = [pitch0];
+  for(let pi=0; pi<pitches.length; pi++){
+    state.pitch = pitches[pi];
+    for(let k=-1; k<=1; k++){
+      state.yaw = yaw0 + k*0.28;
+      Object.values(nodes).forEach(function(n){
+        if(!n.pos) return;
+        const p = project(n.pos.x, n.pos.y, n.pos.z);
+        if(!p) return;
+        if(p.x < minX) minX = p.x;
+        if(p.x > maxX) maxX = p.x;
+        if(p.y < minY) minY = p.y;
+        if(p.y > maxY) maxY = p.y;
+      });
+    }
+  }
+  state.pitch = pitch0; state.yaw = yaw0; state.oy = oy0; state.zoom = z0; state.ox = ox0;
+  if(maxX - minX < 2) return;
+
+  const bw = maxX - minX, bh = maxY - minY;
+  const availW = (W > 900 && editingId) ? W - 420 : W;
+  const z = Math.max(0.2, Math.min(3, Math.min(availW*0.86 / bw, H*0.76 / bh)));
+  state.fit = z;
+  state.zoom = z;
+  state.oy = 0;
+  state.ox = 0;
+
+  /* 把内容居中到画布 */
+  let cmin = 1e9, cmax = -1e9, xmin = 1e9, xmax = -1e9;
+  Object.values(nodes).forEach(function(n){
+    if(!n.pos) return;
+    const p = project(n.pos.x, n.pos.y, n.pos.z);
+    if(!p) return;
+    if(p.y < cmin) cmin = p.y;
+    if(p.y > cmax) cmax = p.y;
+    if(p.x < xmin) xmin = p.x;
+    if(p.x > xmax) xmax = p.x;
+  });
+  state.oy = H*0.53 - (cmin + cmax) * 0.5;
+  state.ox = availW*0.5 - (xmin + xmax) * 0.5;
+  panelShift = (availW - W) * 0.5;
+}
+
+function walk(id, depth, az, seed, tl, yBias, rBias){
+  const n = nodes[id];
+  if(!n || depth > 60) return;
+  const R = 7 + depth * 1.35 + (rBias || 0);
+  n.depth = depth;
+  n.tl = tl;
+  n.az = az;
+  n.r = R;
+  n.pos = {
+    x: R * Math.cos(az),
+    y: Math.sin(depth*0.30 + seed*4.2) * 7.2 + depth*0.16 + yBias,
+    z: R * Math.sin(az)
+  };
+  n.children.slice().forEach(function(cid,i){
+    if(!nodes[cid]) return;
+    if(i === 0){
+      walk(cid, depth+1, az + 0.008, seed, tl, 0, 0);
+    }else{
+      const side = (i % 2 === 1) ? 1 : -1;
+      const mag  = 0.22 + 0.16 * Math.floor((i-1)/2);
+      walk(cid, depth+1, az + 0.008 + side*mag, seed + 0.41*i, tl, side*2.3, 4.2);
+    }
+  });
+}
+
+/* ---------------- 摄像机 / 投影 ---------------- */
+function project(x,y,z){
+  const cy = Math.cos(state.yaw), sy = Math.sin(state.yaw);
+  const cp = Math.cos(state.pitch), sp = Math.sin(state.pitch);
+  const x1 = x*cy - z*sy;
+  const z1 = x*sy + z*cy;
+  const y2 = y*cp - z1*sp;
+  const z2 = y*sp + z1*cp;
+  const zc = 100 + z2;
+  if(zc < 8) return null;
+  const s = FOV * state.zoom / zc;
+  return { x: W*0.5 + state.ox + x1*s, y: H*0.5 + state.oy - y2*s, s:s, z:zc };
+}
+
+function fade(z){ return Math.max(0.42, Math.min(1, (172 - z) / 88)); }
+
+const _cache = {};
+function rgba(hex, a){
+  let c = _cache[hex];
+  if(!c){
+    let h = String(hex).replace('#','');
+    if(h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    c = _cache[hex] = [parseInt(h.slice(0,2),16)||0, parseInt(h.slice(2,4),16)||0, parseInt(h.slice(4,6),16)||0];
+  }
+  return 'rgba('+c[0]+','+c[1]+','+c[2]+','+a+')';
+}
+
+/* ---------------- 背景星场 ---------------- */
+const stars = [];
+(function(){
+  for(let i=0;i<250;i++){
+    const r = 88 + Math.random()*80;
+    const th = Math.random()*TAU;
+    const ph = Math.acos(Math.random()*2 - 1);
+    stars.push({
+      x: r*Math.sin(ph)*Math.cos(th),
+      y: r*Math.cos(ph)*0.65,
+      z: r*Math.sin(ph)*Math.sin(th),
+      b: 0.2 + Math.random()*0.7,
+      s: 0.6 + Math.random()*1.4,
+      ph2: Math.random()*TAU
+    });
+  }
+})();
+
+/* ---------------- 图片缓存 ---------------- */
+const imgCache = {};
+function getImg(n){
+  if(!n.img) return null;
+  const e = imgCache[n.id];
+  if(e && e.src === n.img) return e.ok ? e.img : null;
+  const im = new Image();
+  im.onload = function(){ imgCache[n.id] = {src:n.img, ok:true, img:im}; };
+  im.onerror = function(){ imgCache[n.id] = {src:n.img, ok:false}; };
+  im.src = n.img;
+  imgCache[n.id] = {src:n.img, ok:false};
+  return null;
+}
+
+/* ---------------- 绘制 ---------------- */
+let lastProj = [];
+let lastTs = 0;
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+function draw(ts){
+  lastTs = ts;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+
+  /* 背景 */
+  const cxp = W*0.5, cyp = H*0.52, R0 = Math.max(W,H)*0.8;
+  const bg = ctx.createRadialGradient(cxp,cyp,0,cxp,cyp,R0);
+  bg.addColorStop(0,'#07130f');
+  bg.addColorStop(0.4,'#050a10');
+  bg.addColorStop(1,'#020306');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0,0,W,H);
+
+  /* 星空 */
+  ctx.globalCompositeOperation = 'lighter';
+  for(let i=0;i<stars.length;i++){
+    const st = stars[i];
+    const p = project(st.x, st.y, st.z);
+    if(!p) continue;
+    const tw = 0.55 + 0.45*Math.sin(ts/900 + st.ph2);
+    ctx.fillStyle = 'rgba(190,235,255,'+(st.b*tw*0.55)+')';
+    ctx.beginPath(); ctx.arc(p.x,p.y, st.s, 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+
+  /* 年轮：树桩切面上的同心环 */
+  const RINGS = [6.4, 9.8, 13.2, 16.6, 20.2, 23.8, 27.4, 31, 34.6, 38.2, 41.8, 45.4, 49];
+  ctx.globalCompositeOperation = 'lighter';
+  for(let ri=0; ri<RINGS.length; ri++){
+    const rr = RINGS[ri];
+    const al = (ri % 3 === 0 ? 0.075 : 0.042) + 0.02*(1 - ri/RINGS.length);
+    ctx.beginPath();
+    for(let i=0;i<=72;i++){
+      const a = i/72*TAU;
+      const p = project(rr*Math.cos(a), 0, rr*Math.sin(a));
+      if(!p){ continue; }
+      if(i) ctx.lineTo(p.x,p.y); else ctx.moveTo(p.x,p.y);
+    }
+    ctx.strokeStyle = 'rgba(46,230,214,'+al+')';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  /* 径向木纹 */
+  for(let k=0;k<36;k++){
+    const a = k/36*TAU + 0.03;
+    const p1 = project(2.6*Math.cos(a),0,2.6*Math.sin(a));
+    const p2 = project(49*Math.cos(a),0,49*Math.sin(a));
+    if(!p1||!p2) continue;
+    ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y);
+    ctx.strokeStyle = 'rgba(46,230,214,0.026)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+
+  /* 投影所有节点 */
+  const arr = [];
+  const objs = Object.values(nodes);
+  for(let i=0;i<objs.length;i++){
+    const n = objs[i];
+    if(!n.pos) continue;
+    const p = project(n.pos.x, n.pos.y, n.pos.z);
+    if(!p) continue;
+    arr.push({n:n, p:p});
+  }
+  arr.sort(function(a,b){ return b.p.z - a.p.z; });
+  lastProj = arr;
+
+  /* 连线 */
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'round';
+  for(let i=0;i<arr.length;i++){
+    const b = arr[i].n;
+    if(!b.p) continue;
+    const a = nodes[b.p];
+    if(!a || !a.pos) continue;
+    const pa = project(a.pos.x,a.pos.y,a.pos.z);
+    const pb = arr[i].p;
+    if(!pa) continue;
+
+    const a1 = fade(pa.z), a2 = fade(pb.z);
+    const isTrunk = (b.k === 'trunk');
+    const w = Math.max(1, (isTrunk ? 0.2 : 0.13) * ((pa.s + pb.s)*0.5));
+
+    /* 轻微弧线，让枝干有生长感 */
+    const dx = pb.x - pa.x, dy = pb.y - pa.y;
+    const len = Math.hypot(dx,dy) || 1;
+    const bow = 0.12 * len * ((b.depth % 2) ? 1 : -1);
+    const ctrlX = (pa.x+pb.x)*0.5 - dy/len*bow;
+    const ctrlY = (pa.y+pb.y)*0.5 + dx/len*bow;
+
+    const g = ctx.createLinearGradient(pa.x,pa.y,pb.x,pb.y);
+    g.addColorStop(0, rgba(a.c, 0.5*a1));
+    g.addColorStop(1, rgba(b.c, 0.62*a2));
+    const gGlow = ctx.createLinearGradient(pa.x,pa.y,pb.x,pb.y);
+    gGlow.addColorStop(0, rgba(a.c, 0.14*a1));
+    gGlow.addColorStop(1, rgba(b.c, 0.2*a2));
+
+    ctx.beginPath();
+    ctx.moveTo(pa.x,pa.y);
+    ctx.quadraticCurveTo(ctrlX,ctrlY,pb.x,pb.y);
+
+    ctx.strokeStyle = gGlow;
+    ctx.lineWidth = w*3.6;
+    ctx.stroke();
+
+    ctx.strokeStyle = g;
+    ctx.lineWidth = w;
+    ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+
+  /* 节点 */
+  const NODE_R = {root:1.35, trunk:0.56, branch:0.44};
+  const selObj = state.sel ? nodes[state.sel] : null;
+
+  /* 起点的大范围柔光 */
+  const rootP = project(0,0,0);
+  if(rootP){
+    const gr = Math.max(24, 8.5*rootP.s);
+    const gg = ctx.createRadialGradient(rootP.x,rootP.y,0,rootP.x,rootP.y,gr);
+    gg.addColorStop(0,'rgba(53,242,171,0.16)');
+    gg.addColorStop(0.4,'rgba(53,242,171,0.05)');
+    gg.addColorStop(1,'rgba(53,242,171,0)');
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = gg;
+    ctx.beginPath(); ctx.arc(rootP.x,rootP.y,gr,0,TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  for(let i=0;i<arr.length;i++){
+    const n = arr[i].n, p = arr[i].p;
+    if(n.id === state.sel) continue;
+    drawNode(n, p, ts, NODE_R);
+  }
+  if(selObj && selObj.pos){
+    const p = project(selObj.pos.x,selObj.pos.y,selObj.pos.z);
+    if(p) drawNode(selObj, p, ts, NODE_R);
+  }
+
+  /* 文本标签：按重要性排序，重叠时自动避让 */
+  const labels = [];
+  for(let i=0;i<arr.length;i++){
+    labels.push(arr[i]);
+  }
+  if(selObj && selObj.pos){
+    const p = project(selObj.pos.x,selObj.pos.y,selObj.pos.z);
+    if(p) labels.push({n:selObj, p:p});
+  }
+  labels.sort(function(A,B){
+    const pa = labelRank(A.n), pb = labelRank(B.n);
+    if(pa !== pb) return pa - pb;
+    return A.p.z - B.p.z;
+  });
+
+  const boxes = [];
+  for(let i=0;i<labels.length;i++){
+    const n = labels[i].n, p = labels[i].p;
+    const a = fade(p.z);
+    if(!(n.id === state.sel || n.id === state.hover)){
+      if(n.k === 'branch' && state.zoom < state.fit*1.25) continue;
+      if(a < 0.32) continue;
+    }
+    const fs = n.k === 'trunk' ? 11 : (n.k === 'root' ? 13 : 10);
+    ctx.font = '600 ' + fs + 'px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+    const tw = ctx.measureText(n.t).width;
+    const r = (NODE_R[n.k] || 0.44) * p.s;
+    const gap = Math.max(6, r + 5);
+
+    /* 四个候选位置：右、左、上、下，按层级奇偶错开，减少串行堆叠 */
+    const sidePos = [
+      {x: p.x + gap,                  y: p.y - Math.max(3, r*0.55)},
+      {x: p.x - gap - tw,             y: p.y - Math.max(3, r*0.55)},
+      {x: p.x - tw*0.5,               y: p.y - r - fs*1.1},
+      {x: p.x - tw*0.5,               y: p.y + r + fs*1.1}
+    ];
+    const order = (n.depth % 2 === 0) ? [0,2,3,1] : [0,3,2,1];
+    let chosen = null, box = null, cy = 0;
+    for(let c=0;c<order.length;c++){
+      const s = sidePos[order[c]];
+      const bx = {x:s.x-2, y:s.y-fs*0.85, w:tw+4, h:fs*1.7};
+      if(bx.x + bx.w > W - 4 || bx.x < 2) continue;
+      let hit = false;
+      for(let k=0;k<boxes.length;k++){
+        const o = boxes[k];
+        if(bx.x < o.x+o.w+2 && bx.x+bx.w+2 > o.x && bx.y < o.y+o.h+1 && bx.y+bx.h+1 > o.y){ hit = true; break; }
+      }
+      if(!hit){ chosen = s.x; box = bx; cy = s.y; break; }
+    }
+    if(chosen === null) continue;
+    boxes.push(box);
+    const y = cy;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(2,8,10,0.92)';
+    ctx.fillText(n.t, chosen+1, y+1);
+    ctx.fillStyle = rgba(n.c, n.id === state.sel ? 1 : (0.88*a));
+    ctx.fillText(n.t, chosen, y);
+  }
+  if(boxes.length > 34) boxes.length = 34;
+}
+
+function labelRank(n){
+  if(n.id === state.sel) return 0;
+  if(n.id === state.hover) return 1;
+  if(n.k === 'root') return 2;
+  return 10 + n.depth;
+}
+
+function drawNode(n, p, ts, NODE_R){
+  const isSel = n.id === state.sel;
+  const isHov = n.id === state.hover;
+  const col = n.c || '#4ec9ff';
+  const a = fade(p.z);
+  let r = (NODE_R[n.k] || 0.74) * p.s;
+  if(n.k === 'root') r *= 1 + 0.07*Math.sin(ts/520);
+  if(isHov) r *= 1.12;
+  if(r < 0.8) r = 0.8;
+
+  ctx.globalCompositeOperation = 'lighter';
+  /* 外层光晕 */
+  const hR = Math.max(2, r*2.4*(isSel?1.5:(isHov?1.25:1)));
+  const g1 = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,hR);
+  g1.addColorStop(0,   rgba(col, 0.42*a));
+  g1.addColorStop(0.35,rgba(col, 0.13*a));
+  g1.addColorStop(1,   rgba(col, 0));
+  ctx.fillStyle = g1;
+  ctx.beginPath(); ctx.arc(p.x,p.y,hR,0,TAU); ctx.fill();
+
+  /* 核心 */
+  const g2 = ctx.createRadialGradient(p.x - r*0.35, p.y - r*0.4, 0, p.x, p.y, r*1.05);
+  g2.addColorStop(0, 'rgba(255,255,255,'+(0.92*a)+')');
+  g2.addColorStop(0.48, rgba(col, 0.95*a));
+  g2.addColorStop(1, rgba(col, 0.5*a));
+  ctx.fillStyle = g2;
+  ctx.beginPath(); ctx.arc(p.x,p.y,r,0,TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+
+  /* 细边 */
+  ctx.strokeStyle = rgba(col, 0.5*a);
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(p.x,p.y,r+1.4,0,TAU); ctx.stroke();
+
+  /* 选中环 */
+  if(isSel){
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.72)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([4,5]);
+    ctx.lineDashOffset = -ts/45;
+    ctx.beginPath(); ctx.arc(p.x,p.y, r + 8, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+
+  /* 配图缩略 */
+  if(n.img){
+    const im = getImg(n);
+    if(im){
+      const sz = Math.max(20, Math.min(62, r*3.0));
+      const x = p.x + r*1.5 + 4, y = p.y - sz*0.5;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, a);
+      roundRect(x, y, sz, sz, 4);
+      ctx.fillStyle = '#08131a';
+      ctx.fill();
+      ctx.save();
+      roundRect(x, y, sz, sz, 4);
+      ctx.clip();
+      ctx.drawImage(im, x, y, sz, sz);
+      ctx.restore();
+      roundRect(x, y, sz, sz, 4);
+      ctx.strokeStyle = rgba(col, 0.75);
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+}
+
+/* ---------------- 交互 ---------------- */
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.floor(W*DPR); cv.height = Math.floor(H*DPR);
+  cv.style.width = W+'px'; cv.style.height = H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  FOV = Math.min(W,H) * 1.15;
+}
+window.addEventListener('resize', resize);
+
+function pick(mx,my){
+  let best = null, bestZ = 1e9;
+  for(let i=0;i<lastProj.length;i++){
+    const it = lastProj[i], p = it.p, n = it.n;
+    const r = ({root:1.35,trunk:0.56,branch:0.44}[n.k] || 0.44) * p.s;
+    const d = Math.hypot(mx - p.x, my - p.y);
+    if(d < Math.max(15, r*1.7) && p.z < bestZ){ best = n; bestZ = p.z; }
+  }
+  return best;
+}
+
+let drag = null;
+cv.addEventListener('pointerdown', function(e){
+  drag = {x:e.clientX, y:e.clientY, yaw:state.yaw, pitch:state.pitch, moved:false};
+  cv.classList.add('dragging');
+  if(cv.setPointerCapture) cv.setPointerCapture(e.pointerId);
+});
+
+cv.addEventListener('pointermove', function(e){
+  if(drag){
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if(Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+    if(drag.moved){
+      state.yaw   = drag.yaw + dx*0.0072;
+      state.pitch = Math.max(-1.24, Math.min(1.24, drag.pitch + dy*0.0072));
+    }
+    return;
+  }
+  const n = pick(e.clientX, e.clientY);
+  state.hover = n ? n.id : null;
+  cv.classList.toggle('pointing', !!n);
+});
+
+function endDrag(e){
+  let handled = false;
+  if(drag && !drag.moved){
+    const n = pick(e.clientX, e.clientY);
+    if(n) openPanel(n.id);
+    else closePanel();
+    handled = true;
+  }
+  drag = null;
+  cv.classList.remove('dragging');
+  if(handled){
+    clickGuard = true;
+    setTimeout(function(){ clickGuard = false; }, 0);
+  }
+}
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', function(){ drag = null; cv.classList.remove('dragging'); });
+cv.addEventListener('pointerleave', function(){ state.hover = null; });
+
+/* 兜底：某些环境只派发鼠标事件，补一个 click 命中 */
+let clickGuard = false;
+cv.addEventListener('click', function(e){
+  if(clickGuard) return;
+  const n = pick(e.clientX, e.clientY);
+  if(n) openPanel(n.id);
+  else closePanel();
+});
+
+cv.addEventListener('wheel', function(e){
+  e.preventDefault();
+  userZoomed = true;
+  state.zoom = Math.max(0.42, Math.min(3.2, state.zoom * (1 - e.deltaY*0.0012)));
+}, {passive:false});
+
+/* ---------------- 面板 ---------------- */
+const panel = document.getElementById('panel');
+const ptype = document.getElementById('ptype');
+const ptitle = document.getElementById('ptitle');
+const pdate = document.getElementById('pdate');
+const fTitle = document.getElementById('fTitle');
+const fDate = document.getElementById('fDate');
+const fText = document.getElementById('fText');
+const fCount = document.getElementById('fCount');
+const fColor = document.getElementById('fColor');
+const fColorName = document.getElementById('fColorName');
+const fThumb = document.getElementById('fThumb');
+const footInfo = document.getElementById('footInfo');
+let editingId = null;
+let panelShift = 0;
+
+/* 面板开合时重新安排视野：未手动缩放则整体重排，手动缩放过只做左右平移 */
+function reframe(){
+  const availW = (W > 900 && editingId) ? W - 420 : W;
+  if(!userZoomed){ fitView(); return; }
+  const want = (availW - W) * 0.5;
+  const d = want - panelShift;
+  if(d){ state.ox += d; panelShift = want; }
+}
+
+function openPanel(id){
+  if(!nodes[id]) return;
+  editingId = id;
+  state.sel = id;
+  panel.classList.add('show');
+  syncPanel();
+  reframe();
+}
+
+function closePanel(){
+  editingId = null;
+  state.sel = null;
+  panel.classList.remove('show');
+  reframe();
+}
+
+function timelineName(n){
+  if(n.k === 'root') return '起点 · 人类起源';
+  if(n.tl === 'china') return n.k === 'trunk' ? '中国时间线 · 朝代节点' : '中国时间线 · 分支事件';
+  if(n.tl === 'world') return n.k === 'trunk' ? '世界时间线 · 人教版节点' : '世界时间线 · 分支事件';
+  return '自定义分支';
+}
+
+function syncPanel(){
+  if(!editingId) return;
+  const n = nodes[editingId];
+  ptype.textContent = timelineName(n);
+  ptitle.textContent = n.t;
+  pdate.textContent = n.d || '未填写时间';
+  fTitle.value = n.t;
+  fDate.value = n.d || '';
+  fText.value = n.x || '';
+  fCount.textContent = (n.x || '').length + ' 字 · 建议 500 字';
+  fColorName.textContent = COLOR_NAMES[n.c] || '自定义';
+
+  /* 颜色 */
+  fColor.innerHTML = '';
+  const acts = PALETTE.slice();
+  if(acts.indexOf(n.c) === -1) acts.unshift(n.c);
+  acts.forEach(function(c){
+    const b = document.createElement('button');
+    b.style.background = c;
+    b.title = COLOR_NAMES[c] || c;
+    if(c === n.c) b.className = 'act';
+    b.addEventListener('click', function(){
+      n.c = c; save(); syncPanel(); updateStat();
+    });
+    fColor.appendChild(b);
+  });
+
+  /* 图片 */
+  if(n.img){
+    fThumb.innerHTML = '';
+    const im = document.createElement('img');
+    im.src = n.img;
+    fThumb.appendChild(im);
+  }else{
+    fThumb.textContent = '未添加图片';
+  }
+
+  const kids = n.children.filter(function(id){ return nodes[id]; }).length;
+  footInfo.textContent = '子分支：' + kids + ' 个　·　层级：第 ' + n.depth + ' 层　·　拖动旋转可查看不同角度';
+}
+
+fTitle.addEventListener('input', function(){ if(editingId){ nodes[editingId].t = fTitle.value || '未命名'; ptitle.textContent = nodes[editingId].t; save(); } });
+fDate.addEventListener('input', function(){ if(editingId){ nodes[editingId].d = fDate.value; pdate.textContent = fDate.value || '未填写时间'; save(); } });
+fText.addEventListener('input', function(){
+  if(!editingId) return;
+  nodes[editingId].x = fText.value;
+  fCount.textContent = fText.value.length + ' 字 · 建议 500 字';
+  save();
+});
+
+document.getElementById('pclose').addEventListener('click', closePanel);
+
+document.getElementById('fUpload').addEventListener('click', function(){ document.getElementById('fileImg').click(); });
+
+document.getElementById('fileImg').addEventListener('change', function(e){
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if(!f || !editingId) return;
+  compressImage(f).then(function(dataUrl){
+    if(!editingId) return;
+    nodes[editingId].img = dataUrl;
+    save(); syncPanel();
+    toast('图片已添加');
+  }).catch(function(){ toast('图片读取失败'); });
+});
+
+document.getElementById('fRemoveImg').addEventListener('click', function(){
+  if(!editingId) return;
+  nodes[editingId].img = null;
+  save(); syncPanel(); toast('已移除图片');
+});
+
+document.getElementById('fUrl').addEventListener('keydown', function(e){
+  if(e.key !== 'Enter' || !editingId) return;
+  const v = this.value.trim();
+  if(!v) return;
+  nodes[editingId].img = v;
+  this.value = '';
+  save(); syncPanel(); toast('已设置图片链接');
+});
+
+function compressImage(file){
+  return new Promise(function(resolve, reject){
+    const fr = new FileReader();
+    fr.onerror = reject;
+    fr.onload = function(){
+      const im = new Image();
+      im.onerror = reject;
+      im.onload = function(){
+        const max = 1000;
+        let w = im.width, h = im.height;
+        const k = Math.min(1, max / Math.max(w,h));
+        w = Math.round(w*k); h = Math.round(h*k);
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(im, 0, 0, w, h);
+        try{ resolve(c.toDataURL('image/jpeg', 0.82)); }catch(err){ reject(err); }
+      };
+      im.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+/* 添加 / 删除 */
+document.getElementById('btnChild').addEventListener('click', function(){
+  if(!editingId){ toast('请先选中一个节点'); return; }
+  addChild(editingId, true);
+});
+
+document.getElementById('btnAdd').addEventListener('click', function(){
+  if(state.sel){ addChild(state.sel, true); }
+  else toast('先点击一个节点，再为它添加分支');
+});
+
+function addChild(parentId, editAfter){
+  const p = nodes[parentId];
+  if(!p) return;
+  const id = 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+  const isTrunk = p.k === 'root';
+  const color = isTrunk ? '#4ec9ff' : (p.k === 'trunk' ? PALETTE[(p.children.length + 2) % PALETTE.length] : p.c);
+  nodes[id] = {
+    id:id, p:parentId, t:'新分支节点', d:'填写时间', c:color, x:'', img:null,
+    k: isTrunk ? 'trunk' : 'branch',
+    tl: p.tl === 'origin' ? 'world' : p.tl,
+    children:[], pos:null, depth:0
+  };
+  p.children.push(id);
+  relayout(); save();
+  if(editAfter){
+    openPanel(id);
+    setTimeout(function(){ fTitle.focus(); fTitle.select(); }, 80);
+  }
+  toast('已添加分支：「' + p.t + '」下');
+}
+
+document.getElementById('btnDel').addEventListener('click', function(){
+  if(!editingId) return;
+  const n = nodes[editingId];
+  if(n.k === 'root'){ toast('起点是整棵树的根，不能删除'); return; }
+  const c = countDesc(n.id);
+  const msg = '删除「' + n.t + '」' + (c ? '及其 ' + c + ' 个子分支' : '') + '？此操作不可撤销。';
+  if(!window.confirm(msg)) return;
+  const parent = nodes[n.p];
+  if(parent) parent.children = parent.children.filter(function(x){ return x !== n.id; });
+  removeDeep(n.id);
+  closePanel();
+  relayout(); save();
+  toast('已删除节点');
+});
+
+function countDesc(id){
+  let c = 0;
+  const n = nodes[id];
+  if(!n) return 0;
+  n.children.forEach(function(k){ if(nodes[k]) c += 1 + countDesc(k); });
+  return c;
+}
+function removeDeep(id){
+  const n = nodes[id];
+  if(!n) return;
+  n.children.slice().forEach(removeDeep);
+  delete nodes[id];
+  delete imgCache[id];
+}
+
+/* 在主线上插入：新节点接管原节点的后续主线，原后续挂到新节点下 */
+document.getElementById('btnInsert').addEventListener('click', function(){
+  if(!editingId){ toast('请先选中一个节点'); return; }
+  const p = nodes[editingId];
+  const oldChain = p.children.length ? p.children[0] : null;
+  const id = 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+  const color = p.k === 'root' ? '#ffcc55' : (p.c || '#ffcc55');
+  nodes[id] = {
+    id:id, p:p.id, t:'新主线节点', d:'填写时间', c:color, x:'', img:null,
+    k: p.k === 'root' ? 'trunk' : (p.k === 'branch' ? 'branch' : 'trunk'),
+    tl: p.tl === 'origin' ? 'china' : p.tl,
+    children: oldChain ? [oldChain] : [], pos:null, depth:0
+  };
+  if(oldChain && nodes[oldChain]) nodes[oldChain].p = id;
+  p.children.unshift(id);
+  relayout(); save();
+  openPanel(id);
+  setTimeout(function(){ fTitle.focus(); fTitle.select(); }, 80);
+  toast('已在「' + p.t + '」之后插入主线节点');
+});
+
+/* 统计 */
+function updateStat(){
+  let china = 0, world = 0, other = 0;
+  Object.values(nodes).forEach(function(n){
+    if(n.tl === 'china') china++;
+    else if(n.tl === 'world') world++;
+    else if(n.tl === 'other') other++;
+  });
+  const total = Object.keys(nodes).length;
+  document.getElementById('stat').textContent =
+    total + ' 个节点　·　中国 ' + china + '　·　世界 ' + world + (other ? '　·　自定义 ' + other : '');
+}
+
+/* 提示 */
+let toastTimer = null;
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 2200);
+}
+
+/* 顶栏按钮 */
+document.getElementById('btnAuto').addEventListener('click', function(){
+  state.auto = !state.auto;
+  this.textContent = '星空漫游 · ' + (state.auto ? '开' : '关');
+  this.classList.toggle('on', state.auto);
+});
+
+document.getElementById('btnReset').addEventListener('click', function(){
+  state.yaw = -0.85; state.pitch = 0.62;
+  userZoomed = false;
+  fitView();
+  toast('视角已重置');
+});
+
+document.getElementById('btnExport').addEventListener('click', function(){
+  const data = { version:'1.0', exported:new Date().toISOString(), nodes:serialize() };
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '历史年轮-数据备份.json';
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 3000);
+  toast('已导出 JSON 备份');
+});
+
+document.getElementById('btnImport').addEventListener('click', function(){
+  document.getElementById('fileJson').click();
+});
+
+document.getElementById('fileJson').addEventListener('change', function(e){
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if(!f) return;
+  const fr = new FileReader();
+  fr.onload = function(){
+    try{
+      const json = JSON.parse(fr.result);
+      const list = Array.isArray(json) ? json : json.nodes;
+      if(!Array.isArray(list) || !list.length) throw new Error('格式不正确');
+      build(list);
+      closePanel();
+      save();
+      toast('数据已导入（' + list.length + ' 个节点）');
+    }catch(err){ toast('导入失败：文件格式不正确'); }
+  };
+  fr.readAsText(f);
+});
+
+document.getElementById('btnDefault').addEventListener('click', function(){
+  if(!window.confirm('将清空你的所有编辑，恢复到内置的两条时间线初始版本，确定吗？')) return;
+  try{ localStorage.removeItem(KEY); }catch(e){}
+  build(JSON.parse(JSON.stringify(DEF)));
+  closePanel();
+  toast('已恢复默认版本');
+});
+
+/* Esc 关闭面板 */
+window.addEventListener('keydown', function(e){
+  if(e.key === 'Escape') closePanel();
+});
+
+/* 主循环 */
+function loop(ts){
+  const dt = lastTs ? Math.min(ts - lastTs, 60) : 16;
+  if(state.auto && !drag){ state.yaw += dt * 0.00008; }
+  draw(ts);
+  requestAnimationFrame(loop);
+}
+
+/* 启动 */
+resize();
+if(!loadSaved()) build(JSON.parse(JSON.stringify(DEF)));
+fitView();
+updateStat();
+var hash = '';
+try{ hash = decodeURIComponent(location.hash.replace('#','')); }catch(e){}
+if(hash && nodes[hash]) openPanel(hash);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
